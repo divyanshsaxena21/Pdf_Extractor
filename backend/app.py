@@ -9,8 +9,12 @@ CORS(app)
 
 # Load T5 Model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
-model = T5ForConditionalGeneration.from_pretrained("google-t5/t5-small").to(device)
+tokenizer = T5Tokenizer.from_pretrained("google/t5-efficient-tiny")
+model = T5ForConditionalGeneration.from_pretrained("google/t5-efficient-tiny", 
+    low_cpu_mem_usage=True,
+    torch_dtype=torch.float16  # Use half precision
+).to(device)
+torch.cuda.empty_cache()  # Clear CUDA cache
 
 # Global variable to store extracted text
 pdf_text = ""
@@ -28,17 +32,34 @@ def extract_text_from_pdf(file_path):
 # Summarization
 def summarize_pdf(text):
     input_text = "summarize: " + text
-    input_ids = tokenizer.encode(input_text, return_tensors="pt", max_length=512, truncation=True).to(device)
-    output = model.generate(input_ids, max_length=150, min_length=30, num_beams=4, early_stopping=True)
-    summary = tokenizer.decode(output[0], skip_special_tokens=True)
+    with torch.no_grad():  # Disable gradient tracking to save memory
+        input_ids = tokenizer.encode(input_text, return_tensors="pt", max_length=512, truncation=True).to(device)
+        output = model.generate(
+            input_ids, 
+            max_length=150,
+            min_length=30,
+            num_beams=2,  # Reduced beam search
+            early_stopping=True
+        )
+        summary = tokenizer.decode(output[0], skip_special_tokens=True)
+        del input_ids, output  # Explicit cleanup
+        torch.cuda.empty_cache()
     return summary
 
 # Question Answering
 def ask_question(text, question):
     input_text = f"question: {question} context: {text}"
-    input_ids = tokenizer.encode(input_text, return_tensors="pt", max_length=512, truncation=True).to(device)
-    output = model.generate(input_ids, max_length=100)
-    answer = tokenizer.decode(output[0], skip_special_tokens=True)
+    with torch.no_grad():  # Disable gradient tracking to save memory
+        input_ids = tokenizer.encode(input_text, return_tensors="pt", max_length=512, truncation=True).to(device)
+        output = model.generate(
+            input_ids,
+            max_length=100,
+            num_beams=2,  # Reduced beam search
+            early_stopping=True
+        )
+        answer = tokenizer.decode(output[0], skip_special_tokens=True)
+        del input_ids, output  # Explicit cleanup
+        torch.cuda.empty_cache()
     return answer
 
 @app.route("/upload-pdf", methods=["POST"])
