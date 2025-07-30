@@ -9,8 +9,8 @@ CORS(app)
 
 # Load T5 Model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-base")
-model = T5ForConditionalGeneration.from_pretrained("google-t5/t5-base").to(device)
+tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
+model = T5ForConditionalGeneration.from_pretrained("google-t5/t5-small").to(device)
 
 # Global variable to store extracted text
 pdf_text = ""
